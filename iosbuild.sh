@@ -52,32 +52,37 @@ trap cleanup EXIT
 build_framework() {
   local archs=$1
   
-  rm -rf $OUTDIR
+  eval rm -rf \$OUTDIR $DEVNULL
   liblist=""
   for arch in $archs; do
-    
+   
+    echo "*** Start building for architecture: $arch ***"
+
     mkdir -p $OUTDIR/$arch
-    make clean 2> /dev/null
-    make distclean 2> /dev/null
+    eval make clean $DEVNULL
+    eval make distclean $DEVNULL
     unset CFLAGS CC LD CPP CXX AR AS NM RANLIB LDFLAGS CPPFLAGS CXXFLAGS
     eval setenv_$arch
     cfg_flags=configure_flags_$arch
     cfg_flags=${!cfg_flags}
-    echo "CFLAGS: $CFLAGS "
-    echo "cfg FLAGS: $cfg_flags "
-    CFLAGS=$CFLAGS ./configure $cfg_flags
+    CFLAGS=$CFLAGS && eval ./configure \$cfg_flags $DEVNULL
     
-    make -j4
+    eval make -j4 $DEVNULL
     cp -rvf src/.libs/lib*.a $OUTDIR/$arch
     lib_list="$lib_list $OUTDIR/$arch/libnestegg.a"
+    
+    echo "*** Done building for architecture: $arch ***"
+
   done
 
-  rm -rf $FRAMEWORK_DIR
+  eval rm -rf \$FRAMEWORK_DIR $DEVNULL
   mkdir -p $HEADER_DIR
   cp include/nestegg/*.h $HEADER_DIR
+
+  echo "Creating FAT library"
   lipo -create $lib_list -output $FRAMEWORK_DIR/nestegg
 
-  # TODO: use lipo -info to check supported architectures in the FAT file
+  lipo -info $FRAMEWORK_DIR/nestegg
 }
 
 TARGETS="x86_64-apple-darwin13.3.0"
@@ -117,5 +122,10 @@ while [ -n "$1" ]; do
   esac
   shift
 done
+
+DEVNULL=
+if [ "${VERBOSE}" != "yes" ]; then
+  DEVNULL=' > /dev/null 2>& 1'
+fi
 
 build_framework "$ARCHS"
